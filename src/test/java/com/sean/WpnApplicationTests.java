@@ -1,6 +1,7 @@
 package com.sean;
 
 import com.sean.model.TextMessage;
+import com.sean.util.MenuUtil;
 import com.thoughtworks.xstream.XStream;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -30,5 +31,4 @@ public class WpnApplicationTests {
 		String xml = xStream.toXML(message);
 		System.out.println(xml);
 	}
-
 }

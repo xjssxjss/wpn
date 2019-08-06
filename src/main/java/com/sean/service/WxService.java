@@ -1,8 +1,11 @@
 package com.sean.service;
 
 import com.alibaba.fastjson.JSONObject;
+import com.baidu.aip.ocr.AipOcr;
+import com.baidu.aip.util.ImageUtil;
 import com.sean.common.GlobalConstant;
 import com.sean.model.*;
+import com.sean.util.AipOcrUtil;
 import com.sean.util.HttpClientUtil;
 import com.sean.util.PropertiesListenerConfig;
 import com.sean.util.TuLingUtil;
@@ -38,6 +41,7 @@ public class WxService {
         //封装回复的数据包
         String respXml = null;
         try {
+            System.out.println("token"+getAccessToken());;
             request.setCharacterEncoding("utf8");
             response.setCharacterEncoding("utf8");
             InputStream is = request.getInputStream();
@@ -87,7 +91,8 @@ public class WxService {
                 break;
 
             case "event":
-                baseMessage = dealSubscribeMessage(requestMap);
+                //处理事件
+                baseMessage = dealEventMessage(requestMap);
                 break;
 
 
@@ -113,8 +118,11 @@ public class WxService {
      * @return
      */
     private BaseMessage dealImageMessage(Map<String, String> requestMap) {
-        ImageMessage imageMessage = new ImageMessage(requestMap,new Image("URSef5rQ60eygVRaaABAbnNqFzNz2Px3tR5SfQxl-Pi4GazXjaSoQN0ZKOA9nHUQ"));
-        return imageMessage;
+        //发送图片消息之后，对图片进行处理
+        String url = requestMap.get("PicUrl");
+        //把识别结果返回给客户端
+        TextMessage textMessage = new TextMessage(requestMap,AipOcrUtil.imageUrlOcr(url));
+        return textMessage;
     }
 
     /**
@@ -130,13 +138,61 @@ public class WxService {
     }
 
     /**
-     * 用户关注时候发生的事件
+     * 发生点击事件的时候触发
+     * @param requestMap
+     * @return
+     */
+    private BaseMessage dealEventMessage(Map<String, String> requestMap) {
+        //获取事件类型
+        String event = requestMap.get("Event");
+        switch (event){
+            case "CLICK":
+                return dealClickMessage(requestMap);
+            case "subscribe":
+                return dealSubscribeMessage(requestMap);
+            case "unsubscribe":
+                return dealUnSubscribeMessage(requestMap);
+        }
+        return null;
+    }
+
+    /**
+     * 用户取关公众号的时候触发
+     * @param requestMap
+     * @return
+     */
+    private BaseMessage dealUnSubscribeMessage(Map<String, String> requestMap) {
+        TextMessage textMessage = new TextMessage(requestMap,"期待与您再次相会~~~");
+        return textMessage;
+    }
+
+    /**
+     * 用户关注公众号的时候触发
      * @param requestMap
      * @return
      */
     private BaseMessage dealSubscribeMessage(Map<String, String> requestMap) {
         TextMessage textMessage = new TextMessage(requestMap,"欢迎关注~~~");
         return textMessage;
+    }
+
+    /**
+     * 处理用户点击事件
+     * @param requestMap
+     */
+    private BaseMessage dealClickMessage(Map<String, String> requestMap) {
+        BaseMessage baseMessage = null;
+
+        String eventKey = requestMap.get("EventKey");
+        //获取用户点击所对应的EventKey
+        if(GlobalConstant.C1001_BLJC.equals(eventKey)){
+            //笨狼进城
+            baseMessage = new TextMessage(requestMap,GlobalConstant.C1001_BLJC_CONTENT.replaceAll(" ","").replaceAll("\n",""));
+        } else if(GlobalConstant.C1004_TODAY_MUSIC.equals(eventKey)){
+            Music music = new Music("像风一样 (《小女花不弃》电视剧插曲)","这个秋天，请一边看着风，一边听着薛之谦的「像风一样」。 你会发现，你的心被什么挑拨了。 那是风。","https://y.qq.com/n/yqq/song/001uxKNp3a7Qkv.html?ADTAG=baiduald&play=1","https://y.qq.com/n/yqq/song/001uxKNp3a7Qkv.html?ADTAG=baiduald&play=1","79mDN48liiZbyAsgOsRbFoCDXGrL4x9P4-8zxEY-qgacBVo04fmqjuVBRIokoaiE");
+            baseMessage = new MusicMessage(requestMap,music);
+        }
+        return baseMessage;
     }
 
     /**
@@ -155,11 +211,10 @@ public class WxService {
             return voiceMessage;
         } else if(requestMap.get("Content").equals("图文")){
             List<Article> articles = new ArrayList<>();
-            Article article = new Article("这是图文标题","这是图文描述","http://attimg.dospy.com/img/day_080625/20080625_3ab0023ac4806e36491fEPzkebAg4lio.jpg","www.baidu.com");
+            Article article = new Article("如果不爱他,跟他结婚会有什么下场!","一辈子的时间不长，不要总拿来撞南墙","http://attimg.dospy.com/img/day_080625/20080625_3ab0023ac4806e36491fEPzkebAg4lio.jpg","www.baidu.com");
             articles.add(article);
             NewsMessage newsMessage = new NewsMessage(requestMap,articles);
             return newsMessage;
-
         }
         //声明返回给公众号的字符串对象
         String resultMsg = null;
@@ -203,8 +258,10 @@ public class WxService {
         stream.processAnnotations(VoiceMessage.class);
         stream.processAnnotations(ImageMessage.class);
         stream.processAnnotations(NewsMessage.class);
+        stream.processAnnotations(MusicMessage.class);
         return stream.toXML(baseMessage);
     }
+
     /**
      * 解析微信公众号发来的消息
      * @param is
@@ -232,7 +289,7 @@ public class WxService {
     }
 
     /**
-     * 获取token
+     * 根据api地址获取token
      */
     private static void getToken(){
         String result = "";

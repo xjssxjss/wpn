@@ -23,7 +23,6 @@ import java.util.*;
 public class HttpClientUtil {
 
 	public static String doGet(String url, Map<String, String> param) {
-
 		// 创建Httpclient对象
 		CloseableHttpClient httpclient = HttpClients.createDefault();
 		String resultString = "";
@@ -129,12 +128,11 @@ public class HttpClientUtil {
 			//设置请求头
 			httpPost.setHeader("Content-Type", "application/json");
 			DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
 			long epoch = df.parse("1970-01-01 00:00:00").getTime();
 			Date d = new Date();
 			String t = df.format(d);
 			epoch = df.parse(t).getTime()/1000;
-			//String appid = ResourceUtil.getProperty("psp.properties","wechat_appid");
-			//String appkey = ResourceUtil.getProperty("psp.properties","wechat_appkey");
 			//httpPost.setHeader("appid",appid);
 			//httpPost.setHeader("timespan",epoch+"");
 			//String sign = MD5Util.getMd5Value(appid + appkey + epoch).substring(8,24).toUpperCase();

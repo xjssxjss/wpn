@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="Encoding">
-    <file url="file://$PROJECT_DIR$/../wpn" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/src/lib/aip-java-sdk-4.11.1.jar" charset="GBK" />
+    <file url="file://$PROJECT_DIR$/src/lib/json-20160810.jar" charset="GBK" />
+    <file url="file://$PROJECT_DIR$/src/lib/slf4j-api-1.7.25.jar" charset="GBK" />
+    <file url="file://$PROJECT_DIR$/src/lib/slf4j-simple-1.7.25.jar" charset="GBK" />
   </component>
 </project>
