@@ -1,6 +1,9 @@
 package com.sean.util;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
+import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -8,14 +11,18 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.entity.mime.HttpMultipartMode;
+import org.apache.http.entity.mime.MultipartEntityBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import org.apache.http.util.TextUtils;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.Charset;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -155,4 +162,36 @@ public class HttpClientUtil {
 		return resultString;
 	}
 
+
+	/**
+	 * 上传微信公众号临时素材
+	 * @param url
+	 * @param filePath
+	 * @return
+	 * @throws ClientProtocolException
+	 * @throws IOException
+	 */
+	public static String HcUploadFile(String url, String filePath) throws ClientProtocolException, IOException {
+		HttpPost post = new HttpPost(url);
+		File file = new File(filePath);
+		CloseableHttpClient httpclient = HttpClients.createDefault();
+		HttpEntity entity = null;
+		HttpResponse response = null;
+		String BoundaryStr = "------------7da2e536604c8";
+		post.addHeader("Connection", "keep-alive");
+		post.addHeader("Accept", "*/*");
+		post.addHeader("Content-Type", "multipart/form-data;boundary=" + BoundaryStr);
+		post.addHeader("User-Agent", "Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.0) ");
+		MultipartEntityBuilder meb = MultipartEntityBuilder.create();
+		meb.setBoundary(BoundaryStr).setCharset(Charset.forName("utf-8")).setMode(HttpMultipartMode.BROWSER_COMPATIBLE);
+		meb.addBinaryBody("media", file, ContentType.APPLICATION_OCTET_STREAM, file.getName());
+		entity = meb.build();
+		post.setEntity(entity);
+		response = httpclient.execute(post);
+		entity = response.getEntity();
+		String result = EntityUtils.toString(entity, "utf-8");
+		EntityUtils.consume(entity);// 关闭流
+
+		return result;
+	}
 }
