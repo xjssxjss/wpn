@@ -23,14 +23,14 @@ public class MenuManager {
         LocationButton locationButton = new LocationButton("发送位置","L1001_LOCATION");
 
         ClickButton clickButton1 = new ClickButton("笨狼进城","C1001_BLJC");
-        ClickButton clickButton2 = new ClickButton("公主的猫","C1002_GZDM");
+        ClickButton clickButton2 = new ClickButton("生成推广二维码","C1002_TGEWM");
         ClickButton clickButton3 = new ClickButton("会说话的卷心菜","C1003_HSHDJXC");
         ViewButton viewButton1 = new ViewButton("去百度","http://www.baidu.com");
         PicPhotoOrAlbumButton picPhotoOrAlbumButton = new PicPhotoOrAlbumButton("图片文字识别","image_orc");
         List<Button> listSubButton = new ArrayList<>();
         listSubButton.add(viewButton1);
         listSubButton.add(clickButton1);
-        //listSubButton.add(clickButton2);
+        listSubButton.add(clickButton2);
         //listSubButton.add(clickButton3);
         listSubButton.add(picPhotoOrAlbumButton);
         ComplexButton subButton = new ComplexButton("每日精选",listSubButton);

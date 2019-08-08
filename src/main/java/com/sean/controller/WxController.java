@@ -22,13 +22,15 @@ import java.io.PrintWriter;
 @RequestMapping(value = "wxController")
 public class WxController extends BaseController{
 
+    private static Logger logger = LoggerFactory.getLogger(WxController.class);
+
     @Autowired
     private WxService wxService;
 
     /**
      * 接入微信
      */
-    @RequestMapping(value = "wxSignIn",method = RequestMethod.POST)
+    @RequestMapping(value = "wxSignIn")
     public void wxSignIn(HttpServletRequest request, HttpServletResponse response){
 
         /**
@@ -68,5 +70,18 @@ public class WxController extends BaseController{
                 e.printStackTrace();
             }
         }
+    }
+
+    /**
+     * 通过用户code进行微信认证授权
+     * @param request
+     * @param response
+     */
+    @RequestMapping(value = "getAuthAccessTokenByCode")
+    public void getAuthAccessTokenByCode(HttpServletRequest request,
+                                          HttpServletResponse response){
+        //获取授权返回的code
+        String code = request.getParameter("code");
+        WxService.getUserInfoAccessToken(code);
     }
 }

@@ -5,15 +5,14 @@ import com.baidu.aip.ocr.AipOcr;
 import com.baidu.aip.util.ImageUtil;
 import com.sean.common.GlobalConstant;
 import com.sean.model.*;
-import com.sean.util.AipOcrUtil;
-import com.sean.util.HttpClientUtil;
-import com.sean.util.PropertiesListenerConfig;
-import com.sean.util.TuLingUtil;
+import com.sean.util.*;
 import com.thoughtworks.xstream.XStream;
 import org.dom4j.Document;
 import org.dom4j.DocumentException;
 import org.dom4j.Element;
 import org.dom4j.io.SAXReader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import javax.servlet.http.HttpServletRequest;
@@ -30,7 +29,11 @@ import java.util.Map;
 @Service
 public class WxService {
 
+    private static Logger logger = LoggerFactory.getLogger(WxService.class);
+
     private static AccessToken accessToken;
+
+    private static AccessToken userInfoAccessToken;
     /**
      * 解析微信发过来的消息
      * @param request
@@ -152,6 +155,9 @@ public class WxService {
                 return dealSubscribeMessage(requestMap);
             case "unsubscribe":
                 return dealUnSubscribeMessage(requestMap);
+            case "SCAN":
+                //通过扫描二维码后发生的事件
+                return new TextMessage(requestMap,"扫描了二维码！！");
         }
         return null;
     }
@@ -172,7 +178,19 @@ public class WxService {
      * @return
      */
     private BaseMessage dealSubscribeMessage(Map<String, String> requestMap) {
-        TextMessage textMessage = new TextMessage(requestMap,"欢迎关注~~~");
+        TextMessage textMessage = null;
+        //关注的时候查看用户是男的还是女的，然后回复用户消息
+        String sex = WxUtil.getUserInfoByOpenId(requestMap.get("FromUserName"));
+        textMessage = new TextMessage(requestMap,"感谢关注！\n" +
+                "从某种意义上说，\n" +
+                "世间一切，都是遇见。\n" +
+                "冷遇见暖，就有了雨；\n" +
+                "冬遇见春，有了岁月；\n" +
+                "天遇见地，有了永恒；\n" +
+                "人遇见人，有了生命。\n" +
+                "人生的每一场遇见，都是命中注定。\n" +
+                "期待这一次，和你赶上最好的相遇。\n" +
+                "↓↓↓↓↓↓↓↓↓↓↓↓↓↓");
         return textMessage;
     }
 
@@ -191,6 +209,35 @@ public class WxService {
         } else if(GlobalConstant.C1004_TODAY_MUSIC.equals(eventKey)){
             Music music = new Music("像风一样 (《小女花不弃》电视剧插曲)","这个秋天，请一边看着风，一边听着薛之谦的「像风一样」。 你会发现，你的心被什么挑拨了。 那是风。","https://y.qq.com/n/yqq/song/001uxKNp3a7Qkv.html?ADTAG=baiduald&play=1","https://y.qq.com/n/yqq/song/001uxKNp3a7Qkv.html?ADTAG=baiduald&play=1","79mDN48liiZbyAsgOsRbFoCDXGrL4x9P4-8zxEY-qgacBVo04fmqjuVBRIokoaiE");
             baseMessage = new MusicMessage(requestMap,music);
+        } else if(GlobalConstant.C1002_TGEWM.equals(eventKey)){
+
+            //微信公众号上传临时素材
+            String uploadMaterialUrl = PropertiesListenerConfig.getProperty("wx_upload_material_url");
+            uploadMaterialUrl = uploadMaterialUrl.replace("ACCESS_TOKEN",getAccessToken()).replace("TYPE","image");
+
+            //获取ticket拼接访问路径地址
+            String viewImageUrl = PropertiesListenerConfig.getProperty("wx_view_image_url");
+            viewImageUrl = viewImageUrl.replace("TICKET",WxUtil.genImageTicket());
+
+            logger.info("imageTicket:"+WxUtil.genImageTicket());
+            logger.info("viewImageUrl:"+viewImageUrl);
+            //下载图片到本地
+            String fileName = DownloadPicFromUrlUtil.getPicture(viewImageUrl);
+            try {
+                //本地文件上传到临时素材
+                String resultJson = HttpClientUtil.HcUploadFile(uploadMaterialUrl,fileName);
+
+                JSONObject jsonObject = JSONObject.parseObject(resultJson);
+                String mediaId = jsonObject.getString("media_id");
+                System.out.println("resultJson:"+mediaId);
+
+                //点击生成推广二维码发生的事件
+                Image image = new Image(mediaId);
+                baseMessage = new ImageMessage(requestMap,image);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
         }
         return baseMessage;
     }
@@ -215,6 +262,17 @@ public class WxService {
             articles.add(article);
             NewsMessage newsMessage = new NewsMessage(requestMap,articles);
             return newsMessage;
+        } else if(requestMap.get("Content").equals("我的信息")){
+            return new TextMessage(requestMap,WxUtil.getUserInfoByOpenId(requestMap.get("FromUserName")));
+        } else if(requestMap.get("Content").equals("登录")){
+            //用户授权之后跳转的地址(一般用户通过code获取用户access_token操作)
+            String redirectUrl = "http://spro.free.idcfengye.com/wpn/wxController/getAuthAccessTokenByCode";
+            //获取进行认证的url
+            String oauth = PropertiesListenerConfig.getProperty("wx_oauth2_url");
+            oauth = oauth.replace("APPID",PropertiesListenerConfig.getProperty("wx_app_id")).
+                          replace("REDIRECT_URI",redirectUrl).
+                          replace("SCOPE","snsapi_userinfo");
+            return new TextMessage(requestMap,"点击<a href='"+oauth+"'>这里</a>登录");
         }
         //声明返回给公众号的字符串对象
         String resultMsg = null;
@@ -291,13 +349,28 @@ public class WxService {
     /**
      * 根据api地址获取token
      */
-    private static void getToken(){
+    private static void getToken(String code){
         String result = "";
-        //获取accessToken的url
-        String getAccessTokenUrl = PropertiesListenerConfig.getProperty("wx_get_access_token_url");
+        String getAccessTokenUrl = null;
 
-        String url = getAccessTokenUrl+"&appid="+PropertiesListenerConfig.getProperty("wx_app_id")+"&secret="+PropertiesListenerConfig.getProperty("wx_app_secret");
-        result = HttpClientUtil.doGet(url);
+        String appid = PropertiesListenerConfig.getProperty("wx_app_id");
+        String secret = PropertiesListenerConfig.getProperty("wx_app_secret");
+
+        //判断code是否为null
+        if(StringUtil.isEmpty(code)){
+            //获取accessToken的url
+            getAccessTokenUrl = PropertiesListenerConfig.getProperty("wx_get_access_token_url");
+
+            String url = getAccessTokenUrl+"&appid="+appid+"&secret="+secret;
+            result = HttpClientUtil.doGet(url);
+        } else {
+            getAccessTokenUrl = PropertiesListenerConfig.getProperty("wx_oauth2_get_access_token_url");
+
+            getAccessTokenUrl = getAccessTokenUrl.replace("APPID",appid).replace("SECRET",secret).replace("CODE",code);
+
+            //返回获取accessToken结果
+            result = HttpClientUtil.doGet(getAccessTokenUrl);
+        }
 
         //对返回的结果转为JSONObject对象
         JSONObject jsonObject = JSONObject.parseObject(result);
@@ -305,8 +378,14 @@ public class WxService {
         String token = (String)jsonObject.get("access_token");
         String expiresIn = jsonObject.get("expires_in").toString();
 
-        accessToken = new AccessToken(token,expiresIn);
-        System.out.println(result);
+        //判断code是否为null
+        if(StringUtil.isEmpty(code)){
+            //基础accessToken对象
+            accessToken = new AccessToken(token,expiresIn);
+        } else {
+            //网络授权后获取的accessToken
+            userInfoAccessToken = new AccessToken(token,expiresIn);
+        }
     }
 
     /**
@@ -316,8 +395,24 @@ public class WxService {
     public static String getAccessToken(){
         if(null == accessToken || accessToken.isExpired()){
             //获取accessToken
-            getToken();
+            getToken(null);
         }
         return accessToken.getAccessToken();
+    }
+
+
+    /**
+     * 获取网络授权的accessToken
+     * @return
+     */
+    public static String getUserInfoAccessToken(String code){
+        logger.info("code:"+code);
+        //通过code获取网络授权的accessToken
+        if(null == userInfoAccessToken || userInfoAccessToken.isExpired()){
+            //获取accessToken
+            getToken(code);
+        }
+        logger.info("userInfoAccessToken:"+userInfoAccessToken);
+        return userInfoAccessToken.getAccessToken();
     }
 }
